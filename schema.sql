@@ -5,8 +5,5 @@ CREATE TABLE IF NOT EXISTS observations (
   method TEXT NOT NULL,
   path TEXT NOT NULL,
   response_status INTEGER NOT NULL,
-  user_agent TEXT,
-  country TEXT,
-  asn INTEGER,
-  cf_ray TEXT
+  user_agent TEXT
 );

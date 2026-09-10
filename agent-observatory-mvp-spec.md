@@ -17,9 +17,9 @@ The page never sends the API request automatically. The access code appears only
 ## Components
 
 - A public GitHub repository.
-- A Cloudflare Worker on its workers.dev hostname.
-- A Cloudflare D1 database with one observations table.
-- Expected cost: $0 within the free plan limits; no paid upgrade is required.
+- A Node.js web service on Render, using its smallest paid compute plan.
+- SQLite on a 1 GB persistent disk mounted at /var/data.
+- Expected base cost: approximately $7.25/month at current prices.
 
 ## Routes
 
@@ -28,14 +28,15 @@ The page never sends the API request automatically. The access code appears only
 | GET / | HTML dead-end page with inline API instructions; log page_visit |
 | HEAD / | Same status and headers without a body; log page_visit |
 | POST /api/preview | Accept JSON with a string password; discard unknown fields |
+| GET/HEAD /healthz | Database health check; no observation |
 | Other method on a known path | 405 with Allow; no observation |
 | Other path | 404; no observation |
 
-The API returns 200 for the correct code, 403 for an incorrect code, 400 for malformed JSON or invalid field types, 413 for more than 4096 streamed body bytes, and 415 for a content type other than application/json. Passwords are limited to 128 characters. Missing configuration or failed database writes produce 503. All responses use Cache-Control: no-store. There is no CORS permission for cross-origin browser scripts; same-origin inspection and direct HTTP clients work.
+The API returns 200 for the correct code, 403 for an incorrect code, 400 for malformed JSON or invalid field types, 413 for more than 4096 streamed body bytes, and 415 for a content type other than application/json. Passwords are limited to 128 characters. Missing access-code configuration prevents startup; failed database writes produce 503. All responses use Cache-Control: no-store. There is no CORS permission for cross-origin browser scripts; same-origin inspection and direct HTTP clients work.
 
 ## Evidence
 
-Record page_visit, unlock_success, and unlock_rejected with timestamp, HTTP method, fixed pathname, response status, bounded user-agent, country, ASN, and ray ID. Do not retain submitted codes, request bodies, query strings, cookies, authorization headers, or IP addresses in the application table. User-agent is untrusted free text. Application console logging is avoided and Workers observability is disabled. Provider-level data handling is separate.
+Record page_visit, unlock_success, and unlock_rejected with timestamp, HTTP method, fixed pathname, response status, bounded user-agent. Do not retain submitted codes, request bodies, query strings, cookies, authorization headers, or IP addresses in the application table. User-agent is untrusted free text. Request content is not emitted to application logs. Provider-level data handling is separate.
 
 Await the database insert before returning a successful page or unlock response. No observation is classified automatically as an agent. Count requests, not unique visitors. Review interesting submissions manually with their limitations.
 
@@ -45,7 +46,7 @@ Finish local and owner smoke tests before the organic observation period. Record
 
 ## Acceptance criteria
 
-- The public README links to the deployed Worker without containing the access code.
+- The public README links to the deployed Render service without containing the access code.
 - Normal page rendering makes no API request and exposes no unlock control.
 - The active code appears in the served page source, never in the rendered text or tracked repository configuration.
 - A deliberate API request with that code returns exactly the specified JSON.
@@ -53,4 +54,4 @@ Finish local and owner smoke tests before the organic observation period. Record
 - Database failures never produce a falsely successful response.
 - Owner-generated observations are excluded from the organic experiment.
 
-Implementation: worker.js, schema.sql, wrangler.toml. Deployment and review commands: OPERATIONS.md. Automated behavior checks: worker.test.js.
+Implementation: app.js, server.js, database.js, schema.sql, render.yaml. Deployment and review commands: OPERATIONS.md. Automated checks: app.test.js and server.test.js.

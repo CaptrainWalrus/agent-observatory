@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: agent-observatory
+    runtime: node
+    plan: 0.5c-512mb
+    buildCommand: npm ci && npm test
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: ACCESS_CODE
+        generateValue: true
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: observations
+      mountPath: /var/data
+      sizeGB: 1

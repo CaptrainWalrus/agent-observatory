@@ -64,19 +64,16 @@ function limited(value, max) {
 async function record(request, env, path, event, status) {
   const result = await env.DB.prepare(`
     INSERT INTO observations
-      (event, method, path, response_status, user_agent, country, asn, cf_ray)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
+      (event, method, path, response_status, user_agent)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
     event,
     request.method,
     path,
     status,
     limited(request.headers.get("user-agent"), 256),
-    limited(request.cf?.country, 2),
-    Number.isSafeInteger(request.cf?.asn) ? request.cf.asn : null,
-    limited(request.headers.get("cf-ray"), 64),
-  ).run();
-  if (!result.success) throw new Error("Observation write failed");
+  );
+  if (result.changes !== 1) throw new Error("Observation write failed");
 }
 
 async function readBody(request) {

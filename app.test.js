@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import worker from "./worker.js";
+import worker from "./app.js";
 
 function fixture({ fail = false } = {}) {
   const rows = [];
@@ -10,14 +10,10 @@ function fixture({ fail = false } = {}) {
     DB: {
       prepare() {
         return {
-          bind(...values) {
-            return {
-              async run() {
-                if (fail) throw new Error("Database unavailable");
-                rows.push(values);
-                return { success: true };
-              },
-            };
+          async run(...values) {
+            if (fail) throw new Error("Database unavailable");
+            rows.push(values);
+            return { changes: 1 };
           },
         };
       },

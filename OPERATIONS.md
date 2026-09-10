@@ -1,88 +1,111 @@
-# Running the experiment
+﻿# Running on Render
 
-## Setup
+## Deploy
 
-Use Node.js 22 or later and a Cloudflare account on the Workers Free plan.
+Use the Hobby workspace plan (no paid workspace upgrade needed) and the smallest
+paid web-service instance: 0.5 CPU / 512 MB, plan ID `0.5c-512mb`. Attach a 1 GB
+persistent disk. Current base cost is about $7.25/month ($7 compute + $0.25 disk),
+before taxes or usage beyond included allowances. No separate database is needed.
 
-```sh
-npm ci
-npx wrangler login
-npx wrangler d1 create agent-observatory
-```
+The simplest deployment is **New > Blueprint** in Render. Connect
+`CaptrainWalrus/agent-observatory` and use the included `render.yaml`. It sets up
+the service and disk and generates `ACCESS_CODE` automatically.
 
-Copy the returned database ID into `wrangler.toml`. Choose a fresh access code
-of at most 128 characters and set it as `ACCESS_CODE`. It is injected into a
-non-visible JSON block in the served page, not published in the repository.
-The code is discoverable by anyone inspecting the page and protects no private data.
+If creating a **Web Service** manually, use these settings:
 
-```sh
-npx wrangler d1 execute agent-observatory --remote --file=schema.sql
-npx wrangler secret put ACCESS_CODE
-npm run deploy
-```
+| Setting | Value |
+| --- | --- |
+| Repository | `https://github.com/CaptrainWalrus/agent-observatory` |
+| Branch | `main` |
+| Runtime | Node |
+| Instance | Smallest paid instance, 0.5 CPU / 512 MB |
+| Build command | `npm ci && npm test` |
+| Start command | `npm start` |
+| Health check path | `/healthz` |
+| Persistent disk mount | `/var/data` |
+| Persistent disk size | 1 GB |
+| Environment: `DATA_DIR` | `/var/data` |
+| Environment: `ACCESS_CODE` | A fresh random string, 1-128 characters |
 
-Replace the README's pending deployment text with the resulting workers.dev URL.
-The site has no automatic API call and no visible unlock control. Its inline
-JavaScript explains the API and points to the page's `preview-config` JSON block
-for its `accessCode` value. Nothing reads or submits that value automatically.
+Node is pinned in `.node-version`. Render supplies `PORT`; the server binds to
+`0.0.0.0`. SQLite initializes automatically at startup under
+`/var/data/observations.sqlite`. Attach the actual disk; setting DATA_DIR alone
+cannot make storage persistent. Keep this service at one instance.
+
+The access code is inserted into the page's non-visible `preview-config` JSON.
+It is deliberately discoverable in source and does not protect private data.
+Do not publish its value in GitHub. The page never calls the unlock API itself.
+
+After deployment, replace the README's pending deployment text with your actual
+`onrender.com` URL. No Cloudflare account or configuration is needed.
 
 ## Local verification
 
-Create an ignored `.dev.vars` file containing `ACCESS_CODE="<chosen code>"`.
+Use Node 22.13 or later in the 22.x series. Create an ignored `.env` file:
+
+```dotenv
+ACCESS_CODE=choose-a-local-test-code
+DATA_DIR=./data
+PORT=10000
+```
 
 ```sh
+npm ci
 npm test
-npm run db:local
-npm run dev
+npm start
 ```
 
-Open http://localhost:8787/ and inspect its source. A normal page load should
-produce only a page visit. A deliberate POST to `/api/preview` with JSON
-`{"password":"<chosen code>"}` returns 200 and `{"status":"work in progress"}`.
-A wrong code returns 403. Invalid JSON returns 400, a body over 4096 bytes returns
-413, and a non-JSON content type returns 415. Unknown fields are discarded.
-Only GET/HEAD `/` and POST `/api/preview` are accepted. Other methods on those
-paths return 405; other paths return 404 without a database write.
+Open http://localhost:10000/ and inspect its source. Submit the `accessCode` from
+the `preview-config` block with POST `/api/preview`, Content-Type
+`application/json`, and body `{"password":"<discovered code>"}`.
 
-Database writes are awaited. If storage or configuration is unavailable, the
-response is 503; successful access is never reported without its observation.
-GET and HEAD responses carry `no-store`, as do API and error responses.
+The correct code returns 200 and `{"status":"work in progress"}`. A wrong code
+returns 403. Invalid JSON returns 400, bodies over 4096 bytes return 413, and a
+non-JSON content type returns 415. Unknown fields are discarded. Other routes
+return 404 and unsupported methods return 405. GET/HEAD `/healthz` checks the
+database without recording a visit. The health check cannot unlock the API.
 
-## Observations
+All responses use `Cache-Control: no-store`. Writes finish before an unlock
+succeeds. A storage failure returns 503. Missing or invalid ACCESS_CODE prevents
+server startup. Tests exercise the actual HTTP server and persistence on restart.
 
-The database stores a timestamp, event, method, fixed pathname, response status,
-truncated user-agent (256 characters), country (2), ASN, and request ray ID (64).
-It does not intentionally collect IP addresses, cookies, authorization headers,
-query strings, submitted passwords, arbitrary JSON fields, or request bodies.
-User-agent text is visitor-controlled, so do not treat it as verified identity
-or assume its contents are non-sensitive. Cloudflare's own platform data handling
-is separate from this application table. Worker observability logging is disabled.
+## Review observations
 
-Before opening the organic observation period, finish owner checks and record
-the largest observation ID. Save that cutoff and the UTC start time privately;
-exclude rows at or below that ID. Document IDs from any later owner tests too.
-Keep controlled-agent tests separate from unsolicited observations.
+In the Render service's **Shell** tab, run:
 
 ```sh
-npx wrangler d1 execute agent-observatory --remote --command "SELECT * FROM observations ORDER BY id DESC LIMIT 100"
-npx wrangler d1 execute agent-observatory --remote --command "SELECT event, response_status, COUNT(*) AS requests FROM observations GROUP BY event, response_status"
+npm run observations
 ```
 
-Review weekly for 30 days. Count requests, not unique agents. A successful unlock
-is a candidate for manual review: a human or script can do exactly the same thing.
-Public source exposes the route, but the active code is supplied only at runtime
-in the page. It can still be copied or shared; an unlock does not establish identity. An empty result is inconclusive. No bot scoring, identity
-claims, payments, accounts, or follow-up contact are part of this experiment.
+This prints the latest 100 observations and counts grouped by event and status.
+The same command works locally. Records are not served over HTTP. No static-file
+server exposes the SQLite file or the application directory.
 
-At day 30, retain a non-identifying aggregate summary and delete observations.
-If extending the experiment, explicitly choose a new retention period.
+Stored fields are ID, UTC timestamp, event, method, fixed pathname, response
+status, and user-agent (up to 256 characters). The application does not record
+submitted codes, bodies, query strings, cookies, authorization headers, or IP
+addresses. User-agent is visitor-controlled; treat it as unverified text.
+Render's platform-level data handling is separate from the application database.
+
+Finish owner smoke tests before starting organic observation. Privately record
+the largest observation ID and UTC start time; exclude rows through that ID.
+Record IDs of any later owner tests too. Keep controlled-agent tests separate.
+Review weekly for 30 days, counting requests rather than unique agents.
+
+A successful unlock is a candidate for manual review: humans and scripts can
+complete the same steps. Codes can be copied or shared. No activity is inconclusive.
+
+At day 30, save an aggregate summary and delete the live observations, or choose
+an explicit extension. The following command deletes all observation rows:
 
 ```sh
-npx wrangler d1 execute agent-observatory --remote --command "DELETE FROM observations"
+npm run observations -- --clear
 ```
 
-Deletion affects live rows; provider backups can have their own retention.
+Provider backups can have separate retention. A disk-backed service has a brief
+interruption during deploys; account for downtime when interpreting results.
 
-Official deployment references:
-- https://developers.cloudflare.com/workers/wrangler/configuration/
-- https://developers.cloudflare.com/d1/worker-api/prepared-statements/
+References:
+- https://render.com/pricing
+- https://render.com/docs/disks
+- https://render.com/docs/blueprint-spec
