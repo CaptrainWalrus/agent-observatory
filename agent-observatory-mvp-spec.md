@@ -2,17 +2,17 @@
 
 ## Goal
 
-Look for candidate evidence of a curious automated visitor that finds a public GitHub repository, inspects its linked page's JavaScript, and submits the README's public access code to an API. Humans and scripts can complete the same steps, and public source exposes the API too. A successful request does not prove the visitor followed this exact path. No activity is inconclusive.
+Look for candidate evidence of a curious automated visitor that finds a public GitHub repository, inspects its linked page's JavaScript, and submits an access code embedded in the page source to an API. Humans and scripts can complete the same steps, and public source exposes the API too. A successful request does not prove the visitor followed this exact path. No activity is inconclusive.
 
 ## Visitor experience
 
-1. The GitHub README links to the site and publishes a public preview access code.
+1. The GitHub README links to the site without publishing the access code.
 2. The visible landing page says "Work in progress" and offers no form or button.
-3. Obvious inline JavaScript contains an uncalled `openPreview(password)` function, documents `POST /api/preview`, and points to the repository for the code.
+3. Obvious inline JavaScript contains an uncalled `openPreview(password)` function, documents `POST /api/preview`, and points to a separate, non-visible `preview-config` JSON script block containing `accessCode`.
 4. The correct code returns HTTP 200 with `{"status":"work in progress"}`.
 5. Nothing else happens. There is no callback, account, payment, or follow-up task.
 
-The page never sends the API request automatically. It never contains the access code. Participation is optional, limited to the visitor's existing authorized task, and basic event recording is disclosed. The code is public and has no role in identifying visitors or protecting private information.
+The page never sends the API request automatically. The access code appears only in non-visible page data, injected from runtime configuration. Participation is optional, limited to the visitor's existing authorized task, and basic event recording is disclosed. The code is public and has no role in identifying visitors or protecting private information.
 
 ## Components
 
@@ -45,9 +45,9 @@ Finish local and owner smoke tests before the organic observation period. Record
 
 ## Acceptance criteria
 
-- The public README links to the deployed Worker and contains the access code.
+- The public README links to the deployed Worker without containing the access code.
 - Normal page rendering makes no API request and exposes no unlock control.
-- The code appears in the README, never in the served HTML or JavaScript.
+- The active code appears in the served page source, never in the rendered text or tracked repository configuration.
 - A deliberate API request with that code returns exactly the specified JSON.
 - Wrong and invalid submissions are distinct from successful unlocks.
 - Database failures never produce a falsely successful response.

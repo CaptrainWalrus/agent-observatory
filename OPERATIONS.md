@@ -10,9 +10,10 @@ npx wrangler login
 npx wrangler d1 create agent-observatory
 ```
 
-Copy the returned database ID into `wrangler.toml`. Set `REPOSITORY_URL` to the
-public repository containing the README. Set `ACCESS_CODE` using the README's
-public code; it is a Worker secret only to keep the value out of the served page.
+Copy the returned database ID into `wrangler.toml`. Choose a fresh access code
+of at most 128 characters and set it as `ACCESS_CODE`. It is injected into a
+non-visible JSON block in the served page, not published in the repository.
+The code is discoverable by anyone inspecting the page and protects no private data.
 
 ```sh
 npx wrangler d1 execute agent-observatory --remote --file=schema.sql
@@ -22,11 +23,12 @@ npm run deploy
 
 Replace the README's pending deployment text with the resulting workers.dev URL.
 The site has no automatic API call and no visible unlock control. Its inline
-JavaScript explains the API and points back to the README for the code.
+JavaScript explains the API and points to the page's `preview-config` JSON block
+for its `accessCode` value. Nothing reads or submits that value automatically.
 
 ## Local verification
 
-Create an ignored `.dev.vars` file containing `ACCESS_CODE="<README code>"`.
+Create an ignored `.dev.vars` file containing `ACCESS_CODE="<chosen code>"`.
 
 ```sh
 npm test
@@ -36,7 +38,7 @@ npm run dev
 
 Open http://localhost:8787/ and inspect its source. A normal page load should
 produce only a page visit. A deliberate POST to `/api/preview` with JSON
-`{"password":"<README code>"}` returns 200 and `{"status":"work in progress"}`.
+`{"password":"<chosen code>"}` returns 200 and `{"status":"work in progress"}`.
 A wrong code returns 403. Invalid JSON returns 400, a body over 4096 bytes returns
 413, and a non-JSON content type returns 415. Unknown fields are discarded.
 Only GET/HEAD `/` and POST `/api/preview` are accepted. Other methods on those
@@ -68,8 +70,8 @@ npx wrangler d1 execute agent-observatory --remote --command "SELECT event, resp
 
 Review weekly for 30 days. Count requests, not unique agents. A successful unlock
 is a candidate for manual review: a human or script can do exactly the same thing.
-Public source also exposes the route; an unlock cannot establish that the visitor
-inspected the live page. An empty result is inconclusive. No bot scoring, identity
+Public source exposes the route, but the active code is supplied only at runtime
+in the page. It can still be copied or shared; an unlock does not establish identity. An empty result is inconclusive. No bot scoring, identity
 claims, payments, accounts, or follow-up contact are part of this experiment.
 
 At day 30, retain a non-identifying aggregate summary and delete observations.

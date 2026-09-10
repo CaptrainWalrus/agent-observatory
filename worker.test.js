@@ -7,7 +7,6 @@ function fixture({ fail = false } = {}) {
   const rows = [];
   const env = {
     ACCESS_CODE: "test-code-only",
-    REPOSITORY_URL: "https://github.com/example/observatory",
     DB: {
       prepare() {
         return {
@@ -33,23 +32,37 @@ function post(body, headers = { "Content-Type": "application/json" }) {
   });
 }
 
-test("page JavaScript does not send requests, render controls, or reveal the code", async () => {
+test("code is discoverable in inert page data, with no visible controls or automatic requests", async () => {
   const { env, rows } = fixture();
   const response = await worker.fetch(new Request("https://example.com/"), env);
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Work in progress/);
-  assert.doesNotMatch(html, /test-code-only|<form|<button|<input/);
-  assert.match(html, /https:\/\/github.com\/example\/observatory/);
+  assert.doesNotMatch(html, /<form|<button|<input/);
+  assert.doesNotMatch(html.match(/<main>([\s\S]*?)<\/main>/)[1], /test-code-only/);
+  const configuration = JSON.parse(html.match(/<script type="application\/json" id="preview-config">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(configuration.accessCode, env.ACCESS_CODE);
   const calls = [];
   const context = vm.createContext({ fetch: (...args) => calls.push(args) });
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
   assert.equal(calls.length, 0);
-  await context.openPreview("test-code-only");
+  await context.openPreview(configuration.accessCode);
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "/api/preview");
   assert.deepEqual(JSON.parse(calls[0][1].body), { password: "test-code-only" });
   assert.equal(rows[0][0], "page_visit");
+  const unlocked = await worker.fetch(post(calls[0][1].body), env);
+  assert.equal(unlocked.status, 200);
+});
+
+test("page configuration cannot break out of its inert script element", async () => {
+  const { env } = fixture();
+  env.ACCESS_CODE = '</script><script>unexpected()</script>"&';
+  const response = await worker.fetch(new Request("https://example.com/"), env);
+  const html = await response.text();
+  assert.doesNotMatch(html, /<script>unexpected/);
+  const configuration = JSON.parse(html.match(/<script type="application\/json" id="preview-config">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(configuration.accessCode, env.ACCESS_CODE);
 });
 
 test("successful unlock records only allowlisted metadata", async () => {

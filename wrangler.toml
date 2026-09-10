@@ -6,9 +6,6 @@ workers_dev = true
 [observability]
 enabled = false
 
-[vars]
-REPOSITORY_URL = "https://github.com/CaptrainWalrus/agent-observatory"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "agent-observatory"
