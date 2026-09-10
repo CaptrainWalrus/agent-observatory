@@ -70,6 +70,7 @@ function landingPage(accessCode) {
   <meta name="description" content="Agent Observatory on Render: a public research experiment in automated website exploration. Currently a work in progress.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="${SITE_URL}">
+  <meta name="msvalidate.01" content="B3A3322C803948726A3B72C19524920F">
   <link rel="icon" href="data:,">
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
