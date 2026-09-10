@@ -31,11 +31,12 @@ The page never sends the API request automatically. The access code appears only
 | POST /api/preview | Accept JSON with a string password; return the fruit form descriptor |
 | GET/HEAD /identify | Fruit selection form; log page_visit |
 | POST /api/identify | Accept JSON or form fields password and fruit; persist accepted submissions |
+| GET/HEAD /robots.txt and /sitemap.xml | Public crawler metadata; no observation |
 | GET/HEAD /healthz | Database health check; no observation |
 | Other method on a known path | 405 with Allow; no observation |
 | Other path | 404; no observation |
 
-The API returns 200 for the correct code, 403 for an incorrect code, 400 for malformed JSON or invalid field types, 413 for more than 4096 streamed body bytes, and 415 for a content type other than application/json. Passwords are limited to 128 characters. Missing access-code configuration prevents startup; failed database writes produce 503. All responses use Cache-Control: no-store. There is no CORS permission for cross-origin browser scripts; same-origin inspection and direct HTTP clients work.
+The API returns 200 for the correct code, 403 for an incorrect code, 400 for malformed JSON or invalid field types, 413 for more than 4096 streamed body bytes, and 415 for a content type other than application/json. Passwords are limited to 128 characters. Missing access-code configuration prevents startup; failed database writes produce 503. Experiment responses use Cache-Control: no-store; crawler metadata is cacheable for five minutes. There is no CORS permission for cross-origin browser scripts; same-origin inspection and direct HTTP clients work.
 
 ## Evidence
 

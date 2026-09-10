@@ -66,7 +66,8 @@ non-JSON content type returns 415. Unknown fields are discarded. Other routes
 return 404 and unsupported methods return 405. GET/HEAD `/healthz` checks the
 database without recording a visit. The health check cannot unlock the API.
 
-All responses use `Cache-Control: no-store`. Writes finish before an unlock
+Experiment responses use `Cache-Control: no-store`; public robots.txt and
+sitemap.xml are cacheable for five minutes. Writes finish before an unlock
 succeeds. A storage failure returns 503. Missing or invalid ACCESS_CODE prevents
 server startup. Tests exercise the actual HTTP server and persistence on restart.
 
@@ -137,3 +138,26 @@ References:
 - https://render.com/pricing
 - https://render.com/docs/disks
 - https://render.com/docs/blueprint-spec
+
+## Retrieval diagnostics
+
+The canonical site is https://agent-observatory.onrender.com/. Its robots.txt
+allows crawlers and points to sitemap.xml, which lists only the landing page.
+Discovery-file requests are not recorded as experiment observations. The fruit
+form sends a noindex header so it is not intended as a search entry point.
+
+A robots policy and sitemap improve crawl readiness; they cannot override a
+hosted reader's URL restrictions or guarantee indexing. A missing robots.txt
+previously returned 404, which is not evidence that crawlers were blocked.
+
+If an agent's Windows HTTP client fails during TLS initialization, retrieve the
+same public page using Node with normal certificate validation:
+
+    node -e "fetch('https://agent-observatory.onrender.com/').then(async r=>console.log(r.status,await r.text())).catch(e=>{console.error(e);process.exitCode=1})"
+
+On 2026-09-10, Node fetch, Windows curl, and PowerShell Invoke-WebRequest all
+returned 200 during owner diagnostics. The TLS certificate validated, while the
+hosted web reader returned an unexplained URL rejection. Do not infer a site
+outage or substitute another similarly named website from that rejection.
+Diagnostics use the user-agent observatory-owner-retrieval-diagnostic/2026-09-10
+where supported. Two Windows curl HEAD checks used curl's default user-agent.

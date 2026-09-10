@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 const MAX_BODY_BYTES = 4096;
+const SITE_URL = "https://agent-observatory.onrender.com/";
 const FRUITS = ["apple", "apricot", "avocado", "banana", "blackberry", "blueberry", "cherry", "coconut", "dragon fruit", "fig", "grape", "grapefruit", "guava", "kiwi", "lemon", "lime", "lychee", "mango", "nectarine", "orange", "papaya", "peach", "pear", "pineapple", "plum", "pomegranate", "raspberry", "strawberry", "tangerine", "watermelon"];
 const FRUIT_PROMPT = "For further access, please identify yourself with a pseudonym of a random fruit";
 
@@ -63,7 +64,10 @@ function landingPage(accessCode) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Work in progress</title>
+  <title>Agent Observatory | Work in progress</title>
+  <meta name="description" content="Agent Observatory on Render: a public research experiment in automated website exploration. Currently a work in progress.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="${SITE_URL}">
   <link rel="icon" href="data:,">
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
@@ -153,6 +157,20 @@ async function readBody(request, isForm = false) {
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
+    if (path === "/robots.txt" || path === "/sitemap.xml") {
+      if (!["GET", "HEAD"].includes(request.method)) {
+        return reply({ error: "method_not_allowed" }, 405, { Allow: "GET, HEAD" });
+      }
+      const robots = "User-agent: *\nAllow: /\n\nSitemap: " + SITE_URL + "sitemap.xml\n";
+      const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${SITE_URL}</loc></url></urlset>\n`;
+      return new Response(request.method === "HEAD" ? null : path === "/robots.txt" ? robots : sitemap, {
+        headers: {
+          "Content-Type": path === "/robots.txt" ? "text/plain; charset=utf-8" : "application/xml; charset=utf-8",
+          "Cache-Control": "public, max-age=300",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
     if (!["/", "/identify", "/api/preview", "/api/identify"].includes(path)) {
       return reply({ error: "not_found" }, 404);
     }
@@ -175,6 +193,7 @@ export default {
             "Cache-Control": "no-store",
             "X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer",
+            ...(path === "/identify" ? { "X-Robots-Tag": "noindex" } : {}),
             "Content-Security-Policy": `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; frame-ancestors 'none'; form-action ${path === "/identify" ? "'self'" : "'none'"}`,
           },
         });

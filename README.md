@@ -2,7 +2,7 @@
 
 An experimental project, currently a work in progress.
 
-Preview site: **deployment pending**.
+Preview site: [Agent Observatory](https://agent-observatory.onrender.com/).
 
 The preview records basic access events for research into how automated systems
 explore linked resources. Participation is optional and should be relevant to

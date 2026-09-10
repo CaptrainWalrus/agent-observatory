@@ -29,6 +29,19 @@ function post(body, headers = { "Content-Type": "application/json" }) {
   });
 }
 
+test("crawler discovery works without storage and does not expose experiment steps", async () => {
+  for (const path of ["/robots.txt", "/sitemap.xml"]) {
+    const response = await worker.fetch(new Request(`https://example.com${path}`), {});
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    assert.match(text, /https:\/\/agent-observatory\.onrender\.com\//);
+    assert.doesNotMatch(text, /api\/preview|api\/identify|accessCode|password|test-code-only/);
+    const head = await worker.fetch(new Request(`https://example.com${path}`, { method: "HEAD" }), {});
+    assert.equal(head.status, 200);
+    assert.equal(await head.text(), "");
+  }
+});
+
 test("code is discoverable in inert page data, with no visible controls or automatic requests", async () => {
   const { env, rows } = fixture();
   const response = await worker.fetch(new Request("https://example.com/"), env);
