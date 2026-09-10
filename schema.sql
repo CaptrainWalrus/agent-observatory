@@ -7,3 +7,12 @@ CREATE TABLE IF NOT EXISTS observations (
   response_status INTEGER NOT NULL,
   user_agent TEXT
 );
+
+CREATE TABLE IF NOT EXISTS fruit_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  submitted_at TEXT NOT NULL,
+  fruit TEXT NOT NULL,
+  timestamp_hash TEXT NOT NULL,
+  pseudonym TEXT NOT NULL,
+  user_agent TEXT
+);

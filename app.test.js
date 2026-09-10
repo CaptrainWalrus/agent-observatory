@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
+import { createHash } from "node:crypto";
 import worker from "./app.js";
 
 function fixture({ fail = false } = {}) {
@@ -67,12 +68,67 @@ test("successful unlock records only allowlisted metadata", async () => {
     password: env.ACCESS_CODE, message: "do-not-store-this",
   }), { "Content-Type": "application/json", Authorization: "do-not-store-auth" }), env);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { status: "work in progress" });
+  const payload = await response.json();
+  assert.equal(payload.status, "work in progress");
+  assert.equal(payload.next_step.submit_url, "/api/identify");
   assert.equal(response.headers.get("Cache-Control"), "no-store");
   assert.equal(rows.length, 1);
   assert.equal(rows[0][0], "unlock_success");
   assert.equal(rows[0][2], "/api/preview");
   assert.doesNotMatch(JSON.stringify(rows), /test-code-only|do-not-store|sensitive/);
+});
+
+function identify(value, form = false) {
+  return new Request("https://example.com/api/identify", {
+    method: "POST",
+    headers: { "Content-Type": form ? "application/x-www-form-urlencoded" : "application/json" },
+    body: form ? new URLSearchParams(value).toString() : JSON.stringify(value),
+  });
+}
+
+test("fruit submissions accept JSON and forms, normalize fruit, and hash the recorded timestamp", async () => {
+  for (const form of [false, true]) {
+    const { env, rows } = fixture();
+    const response = await worker.fetch(identify({ password: env.ACCESS_CODE, fruit: " Mango ", extra: "discard-me" }, form), env);
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.recorded, true);
+    assert.equal(rows.length, 1);
+    const [timestamp, fruit, hash, pseudonym] = rows[0];
+    assert.equal(fruit, "mango");
+    assert.equal(hash, createHash("sha256").update(timestamp).digest("hex"));
+    assert.equal(pseudonym, `mango-${hash.slice(0, 12)}`);
+    assert.equal(result.pseudonym, pseudonym);
+    assert.doesNotMatch(JSON.stringify(rows), /test-code-only|discard-me/);
+  }
+});
+
+test("invalid fruit or password is not retained, and failed writes do not report success", async () => {
+  for (const [value, status] of [
+    [{ password: "wrong", fruit: "mango" }, 403],
+    [{ password: "test-code-only", fruit: "my real name" }, 400],
+    [{ password: "test-code-only", fruit: ["mango"] }, 400],
+    [{ password: "test-code-only" }, 400],
+  ]) {
+    const { env, rows } = fixture();
+    assert.equal((await worker.fetch(identify(value), env)).status, status);
+    assert.equal(rows.length, 0);
+  }
+  const { env } = fixture({ fail: true });
+  const response = await worker.fetch(identify({ password: env.ACCESS_CODE, fruit: "mango" }), env);
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).recorded, undefined);
+});
+
+test("fruit form escapes its hidden code and requires deliberate submission", async () => {
+  const { env } = fixture();
+  env.ACCESS_CODE = '\"><script>unexpected()</script>';
+  const response = await worker.fetch(new Request("https://example.com/identify"), env);
+  const html = await response.text();
+  assert.match(html, /For further access, please identify yourself with a pseudonym of a random fruit/);
+  assert.match(html, /<form method="post" action="\/api\/identify">/);
+  assert.doesNotMatch(html, /<script|onload=|onchange=/);
+  assert.match(response.headers.get("Content-Security-Policy"), /form-action 'self'/);
 });
 
 test("wrong passwords, malformed JSON, and incorrect field types never unlock", async () => {

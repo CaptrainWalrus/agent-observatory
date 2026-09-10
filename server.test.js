@@ -44,7 +44,20 @@ test("real HTTP and SQLite preserve observations across restart without health-c
     body: JSON.stringify({ password: accessCode, extra: "do-not-store" }),
   });
   assert.equal(unlock.status, 200);
-  assert.deepEqual(await unlock.json(), { status: "work in progress" });
+  const preview = await unlock.json();
+  assert.equal(preview.status, "work in progress");
+  assert.equal(preview.next_step.form_url, "/identify");
+  const form = await fetch(`${base}${preview.next_step.form_url}`);
+  assert.equal(form.status, 200);
+  assert.match(await form.text(), /name="fruit"/);
+  const identification = await fetch(`${base}/api/identify`, {
+    method: "POST",
+    body: new URLSearchParams({ password: accessCode, fruit: "banana" }),
+  });
+  assert.equal(identification.status, 200);
+  assert.match((await identification.json()).pseudonym, /^banana-[0-9a-f]{12}$/);
+  const submissions = database.prepare("SELECT * FROM fruit_submissions").all();
+  assert.equal(submissions.length, 1);
 
   const oversized = await new Promise((resolve, reject) => {
     const request = httpRequest(`${base}/api/preview`, {
@@ -61,7 +74,7 @@ test("real HTTP and SQLite preserve observations across restart without health-c
   assert.equal(oversized.status, 413);
   assert.equal(JSON.parse(oversized.text).error, "body_too_large");
   const rows = database.prepare("SELECT * FROM observations ORDER BY id").all();
-  assert.deepEqual(rows.map((row) => row.event), ["page_visit", "unlock_success", "unlock_rejected"]);
+  assert.deepEqual(rows.map((row) => row.event), ["page_visit", "unlock_success", "page_visit", "unlock_rejected"]);
   assert.doesNotMatch(JSON.stringify(rows), /integration-only|do-not-store/);
 
   await closeServer();
@@ -70,4 +83,25 @@ test("real HTTP and SQLite preserve observations across restart without health-c
   base = await start();
   assert.equal((await fetch(`${base}/healthz`)).status, 200);
   assert.deepEqual(database.prepare("SELECT * FROM observations ORDER BY id").all(), rows);
+  assert.deepEqual(database.prepare("SELECT * FROM fruit_submissions").all(), submissions);
+});
+
+test("existing observation rows survive adding the fruit table", () => {
+  const directory = mkdtempSync(join(tmpdir(), "observatory-upgrade-"));
+  let database = openDatabase(directory);
+  try {
+    database.exec("DROP TABLE fruit_submissions");
+    database.exec("INSERT INTO observations (event, method, path, response_status) VALUES ('unlock_success', 'POST', '/api/preview', 200)");
+    database.close();
+    database = openDatabase(directory);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM observations").get().count, 1);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM fruit_submissions").get().count, 0);
+  } finally {
+    database.close();
+    for (const suffix of ["", "-wal", "-shm"]) {
+      const file = join(directory, `observations.sqlite${suffix}`);
+      if (existsSync(file)) unlinkSync(file);
+    }
+    rmdirSync(directory);
+  }
 });

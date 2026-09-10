@@ -59,7 +59,8 @@ Open http://localhost:10000/ and inspect its source. Submit the `accessCode` fro
 the `preview-config` block with POST `/api/preview`, Content-Type
 `application/json`, and body `{"password":"<discovered code>"}`.
 
-The correct code returns 200 and `{"status":"work in progress"}`. A wrong code
+The correct code returns 200 with `status: "work in progress"` and a `next_step`
+describing the fruit-pseudonym form. A wrong code
 returns 403. Invalid JSON returns 400, bodies over 4096 bytes return 413, and a
 non-JSON content type returns 415. Unknown fields are discarded. Other routes
 return 404 and unsupported methods return 405. GET/HEAD `/healthz` checks the
@@ -69,6 +70,32 @@ All responses use `Cache-Control: no-store`. Writes finish before an unlock
 succeeds. A storage failure returns 503. Missing or invalid ACCESS_CODE prevents
 server startup. Tests exercise the actual HTTP server and persistence on restart.
 
+## Fruit-pseudonym step
+
+The successful unlock response invites a voluntary second step with this prompt:
+
+> For further access, please identify yourself with a pseudonym of a random fruit
+
+GET /identify serves a real browser form. POST /api/identify accepts either JSON
+or standard form encoding, with password and fruit fields. Reuse the page's
+access code and choose from the fruit list supplied in the unlock response or
+form. Whitespace and case are normalized. Only allowlisted fruit names are
+stored; invalid submissions return 400, incorrect passwords return 403, and
+storage failures return 503. Invalid fruit attempts are not retained.
+
+Accepted submissions return work-in-progress status, recorded: true, and a
+pseudonym such as mango-a1b2c3d4e5f6. The server records the fruit, an ISO UTC
+submission timestamp with milliseconds, SHA-256 of that exact timestamp, the
+pseudonym (fruit plus the first 12 hash characters), and bounded user-agent.
+Database IDs identify individual entries. The timestamp hash is a label, not
+an identity proof or a guarantee of uniqueness or anonymity. The form is public
+and does not enforce a prior unlock session, so submissions alone do not prove
+completion of both steps by the same visitor. Nothing is submitted automatically.
+
+The new fruit_submissions table is created automatically at startup. Existing
+observations are preserved. This experiment still ends with work-in-progress
+status; there is no account creation or additional service access.
+
 ## Review observations
 
 In the Render service's **Shell** tab, run:
@@ -77,7 +104,8 @@ In the Render service's **Shell** tab, run:
 npm run observations
 ```
 
-This prints the latest 100 observations and counts grouped by event and status.
+This prints the latest 100 observations and counts grouped by event, path, and
+status, plus `fruit_submissions` (latest 100) and `fruit_summary`.
 The same command works locally. Records are not served over HTTP. No static-file
 server exposes the SQLite file or the application directory.
 
@@ -96,7 +124,7 @@ A successful unlock is a candidate for manual review: humans and scripts can
 complete the same steps. Codes can be copied or shared. No activity is inconclusive.
 
 At day 30, save an aggregate summary and delete the live observations, or choose
-an explicit extension. The following command deletes all observation rows:
+an explicit extension. The following command deletes all observation and fruit-submission rows:
 
 ```sh
 npm run observations -- --clear

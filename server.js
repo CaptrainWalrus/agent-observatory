@@ -49,7 +49,7 @@ export function createObservatoryServer({ database, accessCode }) {
         return;
       }
       let body;
-      if (incoming.method === "POST" && url.pathname === "/api/preview") {
+      if (incoming.method === "POST" && ["/api/preview", "/api/identify"].includes(url.pathname)) {
         body = await boundedBody(incoming);
       } else {
         incoming.resume();
