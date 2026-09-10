@@ -1,0 +1,16 @@
+name = "agent-observatory"
+main = "worker.js"
+compatibility_date = "2026-09-10"
+workers_dev = true
+
+[observability]
+enabled = false
+
+[vars]
+REPOSITORY_URL = "https://github.com/CaptrainWalrus/agent-observatory"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agent-observatory"
+# Replace with the ID returned by `wrangler d1 create agent-observatory`.
+database_id = "00000000-0000-0000-0000-000000000000"

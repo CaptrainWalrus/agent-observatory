@@ -1,0 +1,14 @@
+{
+  "name": "agent-observatory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node --test",
+    "db:local": "wrangler d1 execute agent-observatory --local --file=schema.sql",
+    "deploy": "wrangler deploy"
+  },
+  "engines": { "node": ">=22" },
+  "devDependencies": { "wrangler": "4.131.0" }
+}
