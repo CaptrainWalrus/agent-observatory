@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 const MAX_BODY_BYTES = 4096;
 const SITE_URL = "https://agent-observatory.onrender.com/";
+// Public ownership-verification token for IndexNow, unrelated to preview access.
+const INDEXNOW_KEY = "56cbb33aadd24d17b5ed66e737f8e29e";
 const FRUITS = ["apple", "apricot", "avocado", "banana", "blackberry", "blueberry", "cherry", "coconut", "dragon fruit", "fig", "grape", "grapefruit", "guava", "kiwi", "lemon", "lime", "lychee", "mango", "nectarine", "orange", "papaya", "peach", "pear", "pineapple", "plum", "pomegranate", "raspberry", "strawberry", "tangerine", "watermelon"];
 const FRUIT_PROMPT = "For further access, please identify yourself with a pseudonym of a random fruit";
 
@@ -157,6 +159,14 @@ async function readBody(request, isForm = false) {
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
+    if (path === `/${INDEXNOW_KEY}.txt`) {
+      if (!["GET", "HEAD"].includes(request.method)) {
+        return reply({ error: "method_not_allowed" }, 405, { Allow: "GET, HEAD" });
+      }
+      return new Response(request.method === "HEAD" ? null : INDEXNOW_KEY, {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=300", "X-Robots-Tag": "noindex" },
+      });
+    }
     if (path === "/robots.txt" || path === "/sitemap.xml") {
       if (!["GET", "HEAD"].includes(request.method)) {
         return reply({ error: "method_not_allowed" }, 405, { Allow: "GET, HEAD" });
