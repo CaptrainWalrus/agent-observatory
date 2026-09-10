@@ -1,4 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+const BING_SITE_AUTH = readFileSync(new URL("./BingSiteAuth.xml", import.meta.url), "utf8");
 
 const MAX_BODY_BYTES = 4096;
 const SITE_URL = "https://agent-observatory.onrender.com/";
@@ -160,6 +163,14 @@ async function readBody(request, isForm = false) {
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
+    if (path === "/BingSiteAuth.xml") {
+      if (!["GET", "HEAD"].includes(request.method)) {
+        return reply({ error: "method_not_allowed" }, 405, { Allow: "GET, HEAD" });
+      }
+      return new Response(request.method === "HEAD" ? null : BING_SITE_AUTH, {
+        headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
+      });
+    }
     if (path === `/${INDEXNOW_KEY}.txt`) {
       if (!["GET", "HEAD"].includes(request.method)) {
         return reply({ error: "method_not_allowed" }, 405, { Allow: "GET, HEAD" });
