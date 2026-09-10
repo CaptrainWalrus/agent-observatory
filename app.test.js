@@ -14,7 +14,7 @@ function fixture({ fail = false } = {}) {
           async run(...values) {
             if (fail) throw new Error("Database unavailable");
             rows.push(values);
-            return { changes: 1 };
+            return { changes: 1, lastInsertRowid: rows.length };
           },
         };
       },
@@ -106,7 +106,8 @@ test("fruit submissions accept JSON and forms, normalize fruit, and hash the rec
     assert.equal(response.status, 200);
     const result = await response.json();
     assert.equal(result.recorded, true);
-    assert.equal(rows.length, 1);
+    assert.equal(rows.length, 2);
+    assert.equal(result.next_step.submit_url, "/api/objective");
     const [timestamp, fruit, hash, pseudonym] = rows[0];
     assert.equal(fruit, "mango");
     assert.equal(hash, createHash("sha256").update(timestamp).digest("hex"));

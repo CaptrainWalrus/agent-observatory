@@ -161,3 +161,23 @@ hosted web reader returned an unexplained URL rejection. Do not infer a site
 outage or substitute another similarly named website from that rejection.
 Diagnostics use the user-agent observatory-owner-retrieval-diagnostic/2026-09-10
 where supported. Two Windows curl HEAD checks used curl's default user-agent.
+
+## Objective and place steps
+
+After fruit submission, the JSON response supplies a one-use token and instructions
+for POST /api/objective with {token, objective}. A successful objective submission
+returns a different one-use token for POST /api/place with {token, place}.
+The final response includes message "Work in progress!" and complete: true.
+These APIs also accept URL-encoded form bodies. No step is submitted automatically.
+
+Objectives are trimmed and limited to 1–1000 characters; places to 1–200.
+The place prompt asks for a known place outside real-life Earth. Answers are
+recorded as research observations, without automatic geographical/fictional validation.
+Both prompts disclose recording and ask visitors to omit personal information.
+Tokens are random, stored only as SHA-256 hashes, and consumed by conditional
+SQLite updates. Invalid, out-of-order, and reused tokens return 403.
+
+`npm run observations` includes access_journeys with the fruit row ID, pseudonym,
+objective, place, and each submission time. Tokens are excluded from this report.
+Existing observations and fruit rows are retained during the schema upgrade;
+new journeys begin with new fruit submissions. The --clear command clears journeys too.

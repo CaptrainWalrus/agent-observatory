@@ -16,3 +16,15 @@ CREATE TABLE IF NOT EXISTS fruit_submissions (
   pseudonym TEXT NOT NULL,
   user_agent TEXT
 );
+
+CREATE TABLE IF NOT EXISTS access_journeys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  fruit_submission_id INTEGER NOT NULL,
+  pseudonym TEXT NOT NULL,
+  objective_token_hash TEXT NOT NULL UNIQUE,
+  objective TEXT,
+  objective_at TEXT,
+  place_token_hash TEXT UNIQUE,
+  place TEXT,
+  place_at TEXT
+);

@@ -61,3 +61,12 @@ Finish local and owner smoke tests before the organic observation period. Record
 - Owner-generated observations are excluded from the organic experiment.
 
 Implementation: app.js, server.js, database.js, schema.sql, render.yaml. Deployment and review commands: OPERATIONS.md. Automated checks: app.test.js and server.test.js.
+
+## Additional access steps
+
+The flow now continues from fruit to "State your objective here", then
+"Name a known place that is not on the real-life planet Earth", and finally
+"Work in progress!". Each new step requires a one-use token returned by its
+predecessor. Store answers and timestamps linked to the fruit submission.
+The place is a free-text research response, not an automatically graded answer.
+See OPERATIONS.md for endpoint details and monitoring.

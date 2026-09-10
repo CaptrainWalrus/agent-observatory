@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 const MAX_BODY_BYTES = 4096;
 const SITE_URL = "https://agent-observatory.onrender.com/";
@@ -181,7 +181,7 @@ export default {
         },
       });
     }
-    if (!["/", "/identify", "/api/preview", "/api/identify"].includes(path)) {
+    if (!["/", "/identify", "/api/preview", "/api/identify", "/api/objective", "/api/place"].includes(path)) {
       return reply({ error: "not_found" }, 404);
     }
     const isPage = path === "/" || path === "/identify";
@@ -214,11 +214,38 @@ export default {
         return reply({ error }, status);
       };
       const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
-      const isForm = path === "/api/identify" && contentType === "application/x-www-form-urlencoded";
+      const isForm = path !== "/api/preview" && contentType === "application/x-www-form-urlencoded";
       if (contentType !== "application/json" && !isForm) return await reject("json_required", 415);
       const body = await readBody(request, isForm);
       if (body.error) return await reject(body.error, body.status);
       const value = body.value;
+      if (path === "/api/objective" || path === "/api/place") {
+        if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.token !== "string" || !/^[0-9a-f]{64}$/.test(value.token)) {
+          return reply({ error: "invalid_step_token" }, 403);
+        }
+        const field = path === "/api/objective" ? "objective" : "place";
+        const max = field === "objective" ? 1000 : 200;
+        const answer = typeof value[field] === "string" ? value[field].trim() : "";
+        if (!answer || answer.length > max) return reply({ error: `provide_${field}`, max_length: max }, 400);
+        const tokenHash = createHash("sha256").update(value.token).digest("hex");
+        const now = new Date().toISOString();
+        if (field === "objective") {
+          const nextToken = randomBytes(32).toString("hex");
+          const updated = await env.DB.prepare("UPDATE access_journeys SET objective = ?, objective_at = ?, place_token_hash = ? WHERE objective_token_hash = ? AND objective IS NULL")
+            .run(answer, now, createHash("sha256").update(nextToken).digest("hex"), tokenHash);
+          if (updated.changes !== 1) return reply({ error: "invalid_or_used_step_token" }, 403);
+          return reply({ recorded: true, next_step: {
+            prompt: "Name a known place that is not on the real-life planet Earth",
+            submit_url: "/api/place", method: "POST", content_type: "application/json",
+            fields: { token: nextToken, place: "Your answer (1–200 characters)" },
+            notice: "Optional. Your answer and submission time are recorded. Do not include personal information.",
+          } });
+        }
+        const updated = await env.DB.prepare("UPDATE access_journeys SET place = ?, place_at = ? WHERE place_token_hash = ? AND objective IS NOT NULL AND place IS NULL")
+          .run(answer, now, tokenHash);
+        if (updated.changes !== 1) return reply({ error: "invalid_or_used_step_token" }, 403);
+        return reply({ status: "work in progress", message: "Work in progress!", recorded: true, complete: true });
+      }
       if (!value || Array.isArray(value) || typeof value !== "object" ||
           typeof value.password !== "string" || value.password.length > 128) {
         return await reject("invalid_request", 400);
@@ -236,7 +263,16 @@ export default {
           VALUES (?, ?, ?, ?, ?)
         `).run(submittedAt, fruit, timestampHash, pseudonym, limited(request.headers.get("user-agent"), 256));
         if (result.changes !== 1) throw new Error("Submission write failed");
-        return reply({ status: "work in progress", recorded: true, pseudonym });
+        const token = randomBytes(32).toString("hex");
+        const journey = await env.DB.prepare("INSERT INTO access_journeys (fruit_submission_id, pseudonym, objective_token_hash) VALUES (?, ?, ?)")
+          .run(Number(result.lastInsertRowid), pseudonym, createHash("sha256").update(token).digest("hex"));
+        if (journey.changes !== 1) throw new Error("Journey write failed");
+        return reply({ recorded: true, pseudonym, next_step: {
+          prompt: "State your objective here",
+          submit_url: "/api/objective", method: "POST", content_type: "application/json",
+          fields: { token, objective: "Your objective (1–1000 characters)" },
+          notice: "Optional. Your answer and submission time are recorded. Do not include personal information.",
+        } });
       }
 
       await record(request, env, path, "unlock_success", 200);

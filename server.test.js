@@ -55,7 +55,29 @@ test("real HTTP and SQLite preserve observations across restart without health-c
     body: new URLSearchParams({ password: accessCode, fruit: "banana" }),
   });
   assert.equal(identification.status, 200);
-  assert.match((await identification.json()).pseudonym, /^banana-[0-9a-f]{12}$/);
+  const identified = await identification.json();
+  assert.match(identified.pseudonym, /^banana-[0-9a-f]{12}$/);
+  const submit = (path, value) => fetch(base + path, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value),
+  });
+  const objectiveToken = identified.next_step.fields.token;
+  assert.equal((await submit('/api/place', { token: objectiveToken, place: 'Mars' })).status, 403);
+  assert.equal((await submit('/api/objective', { token: objectiveToken, objective: ' ' })).status, 400);
+  assert.equal((await submit('/api/objective', { token: '0'.repeat(64), objective: 'Explore' })).status, 403);
+  const objective = await submit('/api/objective', { token: objectiveToken, objective: 'Find NYC temperature' });
+  assert.equal(objective.status, 200);
+  const placeToken = (await objective.json()).next_step.fields.token;
+  assert.equal((await submit('/api/objective', { token: objectiveToken, objective: 'Replay' })).status, 403);
+  assert.equal((await submit('/api/place', { token: placeToken, place: 'x'.repeat(201) })).status, 400);
+  const completed = await submit('/api/place', { token: placeToken, place: 'Olympus Mons, Mars' });
+  assert.equal(completed.status, 200);
+  assert.equal((await completed.json()).message, 'Work in progress!');
+  assert.equal((await submit('/api/place', { token: placeToken, place: 'Replay' })).status, 403);
+  const journeys = database.prepare('SELECT * FROM access_journeys').all();
+  assert.equal(journeys.length, 1);
+  assert.equal(journeys[0].objective, 'Find NYC temperature');
+  assert.equal(journeys[0].place, 'Olympus Mons, Mars');
+  assert.doesNotMatch(JSON.stringify(journeys), new RegExp(objectiveToken + '|' + placeToken));
   const submissions = database.prepare("SELECT * FROM fruit_submissions").all();
   assert.equal(submissions.length, 1);
 
@@ -84,6 +106,7 @@ test("real HTTP and SQLite preserve observations across restart without health-c
   assert.equal((await fetch(`${base}/healthz`)).status, 200);
   assert.deepEqual(database.prepare("SELECT * FROM observations ORDER BY id").all(), rows);
   assert.deepEqual(database.prepare("SELECT * FROM fruit_submissions").all(), submissions);
+  assert.deepEqual(database.prepare("SELECT * FROM access_journeys").all(), journeys);
 });
 
 test("existing observation rows survive adding the fruit table", () => {
